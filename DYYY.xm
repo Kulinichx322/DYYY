@@ -9038,46 +9038,32 @@ static void findTargetViewInView(UIView *view) {
 // 【DYYY 完美兼容补丁】：解决 iPad Pro 右上角搜索框隐藏失败，并完美联动设置开关
 // ============================================================================
 
-%hook UIView
+#import <UIKit/UIKit.h>
 
+%hook UIView
 - (void)didMoveToWindow {
     %orig;
-    
-    // 1. 核心安全检查：只有当你菜单里的“隐藏右上搜索”开关处于打开状态时，才执行隐藏
     if (DYYYGetBool(@"DYYYHideTopSearch")) {
-        
-        // 2. 获取当前组件类名
         NSString *className = NSStringFromClass([self class]);
-        if (!className) return;
-        
-        // 3. 判定是否为 iPad / 平板端的顶部导航栏或搜索相关组件
-        if ([className containsString:@"AWEPadFeedSearch"] || 
-            [className containsString:@"AWEPadFeedTopBarSearch"] ||
-            [className containsString:@"AWETopBarSearchButton"] ||
-            [className containsString:@"PadFeedSearchWidget"]) {
-            
-            // 4. 开关开启且属于 iPad 搜索组件，执行彻底隐藏
+        if (className && ([className containsString:@"AWEPadFeedSearch"] || 
+            [className containsString:@"AWEPadFeedTopBarSearch"] || 
+            [className containsString:@"AWETopBarSearchButton"] || 
+            [className containsString:@"PadFeedSearchWidget"])) {
             self.hidden = YES;
             self.alpha = 0.0;
             self.userInteractionEnabled = NO;
-            self.frame = CGRectZero; 
+            self.frame = CGRectZero;
         }
     }
 }
-
 %end
 
 %hook AWEPadFeedTopBar
-
 - (void)layoutSubviews {
-    %orig; // 必须调用原函数，保证 UI 正常渲染
-
-    // 修复方案：显式将 self 转换为 UIView 指针，防止编译器找不到 subviews 属性
-    UIView *selfView = (UIView *)self;
-
+    %orig;
     if (DYYYGetBool(@"DYYYHideTopSearch")) {
-        // 使用强转后的 selfView 遍历
-        for (UIView *subview in [selfView subviews]) {
+        // 使用 (id) 强转避开编译器前向声明检查
+        for (UIView *subview in [(id)self subviews]) {
             NSString *subClassName = NSStringFromClass([subview class]);
             if ([subClassName containsString:@"Search"] || [subClassName containsString:@"SearchWidget"]) {
                 subview.hidden = YES;
