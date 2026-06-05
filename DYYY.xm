@@ -9065,6 +9065,7 @@ static void findTargetViewInView(UIView *view) {
     }
 }
 
+%end
 
 %hook AWEPadFeedTopBar
 
