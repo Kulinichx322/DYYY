@@ -9075,15 +9075,13 @@ static void findTargetViewInView(UIView *view) {
     
     // 5. 兜底保障：同样先判断菜单开关是否开启
     if (DYYYGetBool(@"DYYYHideTopSearch")) {
-        // 遍历 iPad 专属整条顶栏，发现搜索框蛛丝马迹直接清除
-        for (UIView *subview in self.subviews) {
-            NSString *subClassName = NSStringFromClass([subview class]);
-            if ([subClassName containsString:@"Search"] || [subClassName containsString:@"SearchWidget"]) {
-                subview.hidden = YES;
-                subview.frame = CGRectZero;
-            }
+    // 遍历 iPad 专属整条顶栏，发现搜索框蛛丝马迹直接清除
+    // 通过 (UIView *) 强制类型转换，避开编译器对 AWEPadFeedTopBar 属性的限制检查
+    for (UIView *subview in [(UIView *)self subviews]) {
+        NSString *subClassName = NSStringFromClass([subview class]);
+        if ([subClassName containsString:@"Search"] || [subClassName containsString:@"SearchWidget"]) {
+            subview.hidden = YES;
+            subview.frame = CGRectZero;
         }
     }
 }
-
-%end
