@@ -9070,12 +9070,14 @@ static void findTargetViewInView(UIView *view) {
 %hook AWEPadFeedTopBar
 
 - (void)layoutSubviews {
-    %orig; // 必须调用原函数，保证 UI 正常渲染
+    %orig; // 必须保留
 
-    // 5. 兜底保障：判断开关
+    // 1. 显式将 self 转换为 (UIView *) 以访问 subviews 属性
+    UIView *selfView = (UIView *)self;
+    
     if (DYYYGetBool(@"DYYYHideTopSearch")) {
-        // 遍历 subviews，为了确保编译器识别，使用 (id) 或 (UIView *) 强制转换
-        for (UIView *subview in [(UIView *)self subviews]) {
+        // 2. 遍历 subviews
+        for (UIView *subview in [selfView subviews]) {
             NSString *subClassName = NSStringFromClass([subview class]);
             if ([subClassName containsString:@"Search"] || [subClassName containsString:@"SearchWidget"]) {
                 subview.hidden = YES;
@@ -9083,6 +9085,5 @@ static void findTargetViewInView(UIView *view) {
             }
         }
     }
-} // <--- 这是 layoutSubviews 方法的结束大括号
-
+}
 %end
