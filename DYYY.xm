@@ -6622,62 +6622,6 @@ static Class tabBarButtonClass = nil;
     }
 }
 
-    // 背景和分隔线处理
-    BOOL hideBottomBg = DYYYGetBool(@"DYYYHideBottomBg");
-    BOOL enableFullScreen = DYYYGetBool(@"DYYYEnableFullScreen");
-
-    if (hideBottomBg || enableFullScreen) {
-        if (self.skinContainerView) {
-            self.skinContainerView.hidden = YES;
-        }
-
-        BOOL isHomeSelected = NO;
-        BOOL isFriendsSelected = NO;
-
-        if (enableFullScreen && !hideBottomBg) {
-            for (UIView *subview in self.subviews) {
-                if ([subview isKindOfClass:generalButtonClass]) {
-                    AWENormalModeTabBarGeneralButton *button = (AWENormalModeTabBarGeneralButton *)subview;
-                    if (button.status == 2) {
-                        if ([button.accessibilityLabel isEqualToString:@"首页"])
-                            isHomeSelected = YES;
-                        else if ([button.accessibilityLabel containsString:@"朋友"])
-                            isFriendsSelected = YES;
-                    }
-                }
-            }
-        }
-
-        BOOL hideFriendsButton = DYYYGetBool(@"DYYYHideFriendsButton");
-        BOOL shouldHideBackgrounds = hideBottomBg || (enableFullScreen && (isHomeSelected || (isFriendsSelected && !hideFriendsButton)));
-
-        // 单次遍历处理所有背景和分割线
-        for (UIView *subview in self.subviews) {
-            // 跳过底栏按钮
-            if ([subview isKindOfClass:generalButtonClass] || [subview isKindOfClass:plusButtonClass]) {
-                continue;
-            }
-            // 隐藏底栏背景
-            if ([subview isKindOfClass:barBackgroundClass] || ([subview isMemberOfClass:[UIView class]] && originalTabBarHeight > 0 && fabs(subview.frame.size.height - gCurrentTabBarHeight) < 0.1)) {
-                subview.hidden = shouldHideBackgrounds;
-            }
-            // 隐藏细分割线
-            if (subview.frame.size.height > 0 && subview.frame.size.height < 1 && subview.frame.size.width > 300) {
-                subview.hidden = enableFullScreen;
-            }
-        }
-    } else {
-        if (self.skinContainerView) {
-            self.skinContainerView.hidden = NO;
-        }
-
-        for (UIView *subview in self.subviews) {
-            if ([subview isKindOfClass:barBackgroundClass] || [subview isMemberOfClass:[UIView class]]) {
-                subview.hidden = NO;
-            }
-        }
-    }
-}
 
 - (void)setHidden:(BOOL)hidden {
     %orig(hidden);
@@ -8264,6 +8208,7 @@ static Class TagViewClass = nil;
         }
     }
 }
+
 %end
 
 - (NSArray<__kindof UIView *> *)arrangedSubviews {
