@@ -4302,18 +4302,50 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
-// 隐藏右上搜索，但可点击
+// 隐藏右上搜索框（文字隐藏 + 保持可点击 + iPad 适配）
 %hook AWEHPDiscoverFeedEntranceView
 
 - (void)layoutSubviews {
     %orig;
 
-    if (DYYYGetBool(@"DYYYHideDiscover")) {
-        UIView *firstSubview = self.subviews.firstObject;
-        if ([firstSubview isKindOfClass:[UIImageView class]]) {
-            ((UIImageView *)firstSubview).image = nil;
+    if (!DYYYGetBool(@"DYYYHideDiscover")) {
+        return;
+    }
+
+    // 1. 清空所有文字（UILabel）
+    for (UIView *subview in self.subviews) {
+        if ([subview isKindOfClass:[UILabel class]]) {
+            UILabel *label = (UILabel *)subview;
+            label.text = nil;
+            label.alpha = 0.0;
+        } else if ([subview isKindOfClass:[UIImageView class]]) {
+            UIImageView *img = (UIImageView *)subview;
+            img.image = nil;
+            img.alpha = 0.0;
+        } else {
+            subview.alpha = 0.0;  // 其他背景/容器透明
         }
     }
+
+    // 2. 整个视图透明，但保持可点击
+    self.alpha = 0.0;
+    self.userInteractionEnabled = YES;
+
+    // 3. iPad 专用强隐藏（宽度压扁 + 移到边缘）
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        CGRect frame = self.frame;
+        frame.size.width = 1.0;           // 几乎不可见
+        frame.origin.x = CGRectGetMaxX(self.superview.bounds) - 5; // 靠右边缘
+        self.frame = frame;
+    } else {
+        // iPhone 保持原有微调
+        CGRect frame = self.frame;
+        frame.size.width = 1.0;
+        self.frame = frame;
+    }
+
+    // 防止子视图重新出现
+    [self.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
 }
 
 %end
@@ -9033,43 +9065,3 @@ static void findTargetViewInView(UIView *view) {
                                                     }];
     }
 }
-
-// ============================================================================
-// 【DYYY 完美兼容补丁】：解决 iPad Pro 右上角搜索框隐藏失败，并完美联动设置开关
-// ============================================================================
-
-#import <UIKit/UIKit.h>
- 
-%hook UIView
-- (void)didMoveToWindow {
-    %orig;
-    if (DYYYGetBool(@"DYYYHideTopSearch")) {
-        NSString *className = NSStringFromClass([self class]);
-        if (className && ([className containsString:@"AWEPadFeedSearch"] || 
-            [className containsString:@"AWEPadFeedTopBarSearch"] || 
-            [className containsString:@"AWETopBarSearchButton"] || 
-            [className containsString:@"PadFeedSearchWidget"])) {
-            self.hidden = YES;
-            self.alpha = 0.0;
-            self.userInteractionEnabled = NO;
-            self.frame = CGRectZero;
-        }
-    }
-}
-%end
-
-%hook AWEPadFeedTopBar
-- (void)layoutSubviews {
-    %orig;
-    if (DYYYGetBool(@"DYYYHideTopSearch")) {
-        // 使用 (id) 强转避开编译器前向声明检查
-        for (UIView *subview in [(id)self subviews]) {
-            NSString *subClassName = NSStringFromClass([subview class]);
-            if ([subClassName containsString:@"Search"] || [subClassName containsString:@"SearchWidget"]) {
-                subview.hidden = YES;
-                subview.frame = CGRectZero;
-            }
-        }
-    }
-}
-%end
