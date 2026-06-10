@@ -3544,7 +3544,6 @@ static NSArray *DYYYIMMenuItemsByAddingDownloadAction(NSArray *menuItems, id cel
     for (UIView *v in cachedViews) {
         v.hidden = YES;
     }
-}
 
 %end
 
