@@ -78,7 +78,9 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
     if (![defaults objectForKey:@"DYYYSpeedButtonSize"]) {
         [defaults setFloat:32.0 forKey:@"DYYYSpeedButtonSize"];
     }
-
+    if (![defaults objectForKey:@"DYYYPadScaleFactor"]) {
+        [defaults setObject:@"1.15" forKey:@"DYYYPadScaleFactor"];
+    }
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -137,7 +139,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"设置默认倍速" key:@"DYYYDefaultSpeed" type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"设置长按倍速" key:@"DYYYLongPressSpeed" type:DYYYSettingItemTypePicker],
             [DYYYSettingItem itemWithTitle:@"上下控制倍速" key:@"DYYYEnableLongPressSpeedGesture" type:DYYYSettingItemTypeSwitch],
-            [DYYYSettingItem itemWithTitle:@"显示进度时长" key:@"DYYYShowScheduleDisplay" type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"显示进度时长" key:@"DYYYShowScheduleDisplay" type:DYYYSettingItemTypeSwitch],    
+            [DYYYSettingItem itemWithTitle:@"隐藏左侧边栏" key:@"DYYYHideLeftSideBar" type:DYYYSettingItemTypeSwitch],    
             [DYYYSettingItem itemWithTitle:@"进度时长样式" key:@"DYYYScheduleStyle" type:DYYYSettingItemTypeTextField placeholder:@"默认"],
             [DYYYSettingItem itemWithTitle:@"进度纵轴位置" key:@"DYYYTimelineVerticalPosition" type:DYYYSettingItemTypeTextField placeholder:@"-12.5"],
             [DYYYSettingItem itemWithTitle:@"进度标签颜色" key:@"DYYYProgressLabelColor" type:DYYYSettingItemTypeTextField placeholder:@"十六进制"],
@@ -376,12 +379,20 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"清屏隐藏滑条" key:@"DYYYHideSlider" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"清屏隐藏底栏" key:@"DYYYHideTabBar" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"清屏隐藏倍速" key:@"DYYYHideSpeed" type:DYYYSettingItemTypeSwitch]
+        ],    
+        @[
+            [DYYYSettingItem itemWithTitle:@"iPad 元素缩放系数" key:@"DYYYPadScaleFactor" type:DYYYSettingItemTypeTextField placeholder:@"默认1.15"],
+            [DYYYSettingItem itemWithTitle:@"iPad 全局缩放系数" key:@"DYYYPadGlobalScale" type:DYYYSettingItemTypeTextField placeholder:@"1.0"],
+            [DYYYSettingItem itemWithTitle:@"iPad 侧边栏宽度比例" key:@"DYYYPadSidebarWidthRatio" type:DYYYSettingItemTypeTextField placeholder:@"0.25"],
+            [DYYYSettingItem itemWithTitle:@"强制 iPad 全屏" key:@"DYYYIPadForceFullScreen" type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"强制横屏 Feed" key:@"DYYYForceLandscapeFeed" type:DYYYSettingItemTypeSwitch],
+            [DYYYSettingItem itemWithTitle:@"禁用分屏适配" key:@"DYYYDisablePadSplitView" type:DYYYSettingItemTypeSwitch]
         ]
     ];
 }
 
 - (void)setupSectionTitles {
-    self.sectionTitles = [@[ @"基本设置", @"界面设置", @"隐藏设置", @"顶栏移除", @"隐藏面板", @"面板设置", @"功能设置", @"悬浮按钮" ] mutableCopy];
+    self.sectionTitles = [@[ @"基本设置", @"界面设置", @"隐藏设置", @"顶栏移除", @"隐藏面板", @"面板设置", @"功能设置", @"悬浮按钮", @"iPad 专属" ] mutableCopy];
 }
 
 - (void)setupFooterLabel {
@@ -540,6 +551,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             return @"功能设置";
         case 7:
             return @"悬浮按钮";
+        case 8: 
+            return @"iPad 专属";
         default:
             return @"";
     }

@@ -26,6 +26,41 @@
 #import "DYYYToast.h"
 #import "DYYYUtils.h"
 
+static BOOL isIpad(void) {
+    return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
+}
+
+static CGFloat getPadScaleFactor(void) {
+    NSString *scaleStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYPadScaleFactor"];
+    CGFloat scale = scaleStr.length > 0 ? [scaleStr floatValue] : 1.15;
+    return MAX(0.8, MIN(1.8, scale));
+}
+
+// ==================== 【重要】统一 iPad 缩放函数 ====================
+// 支持「iPad 全局缩放系数」设置，推荐所有 iPad 布局都调用这个函数
+static CGFloat DYYYGetPadScale(void) {
+    if (!isIpad()) return 1.0;   
+    NSString *globalScaleStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYPadGlobalScale"];
+    CGFloat globalScale = globalScaleStr.length > 0 ? [globalScaleStr floatValue] : 1.0;   
+    CGFloat finalScale = getPadScaleFactor() * MAX(0.5, MIN(2.0, globalScale));   
+    return MAX(0.6, MIN(2.5, finalScale));
+}
+
+// 强化 TabBar 高度检测（iPad 底栏高度常变）
+static void updateTabBarHeight(void) {
+    UIWindow *window = [DYYYUtils getActiveWindow];
+    if (!window) return;
+    
+    CGFloat safeBottom = window.safeAreaInsets.bottom;
+    originalTabBarHeight = 49.0 + safeBottom; // iPad 通常 49~83
+    
+    NSString *customHeight = DYYYGetString(@"DYYYTabBarHeight");
+    if (customHeight.length > 0) {
+        gCurrentTabBarHeight = [customHeight floatValue];
+    } else {
+        gCurrentTabBarHeight = originalTabBarHeight;
+    }
+}
 static CGFloat gStartY = 0.0;
 static CGFloat gStartVal = 0.0;
 static DYEdgeMode gMode = DYEdgeModeNone;
@@ -3134,6 +3169,10 @@ static NSArray *DYYYIMMenuItemsByAddingDownloadAction(NSArray *menuItems, id cel
             CGFloat alphaValue = [transparencyValue floatValue];
             self.alpha = alphaValue;
         }
+		if (isIpad()) {
+    CGFloat padScale = getPadScaleFactor();
+    self.transform = CGAffineTransformScale(self.transform, padScale, padScale);
+        }
     }
 }
 %end
@@ -3472,7 +3511,10 @@ static NSArray *DYYYIMMenuItemsByAddingDownloadAction(NSArray *menuItems, id cel
             break;
         }
     }
-
+        if (isIpad() && DYYYGetBool(@"DYYYHideLeftSideBar")) {
+        self.hidden = YES;
+        }
+    }
     UIResponder *responder = self;
     UIViewController *parentVC = nil;
     while ((responder = [responder nextResponder])) {
@@ -6435,13 +6477,15 @@ static Class tabBarButtonClass = nil;
 
 %new
 - (void)initializeOriginalTabBarHeight {
-    if (originalTabBarHeight != kInvalidHeight) {
-        if (gCurrentTabBarHeight == kInvalidHeight) {
-            gCurrentTabBarHeight = originalTabBarHeight;
-        }
-        NSLog(@"[DYYY] initializeOriginalTabBarHeight: Skipped! originalTabBarHeight already initialized as %.1f.", originalTabBarHeight);
-        return;
+    %orig;
+    if (isIpad()) {
+        UIWindow *win = self.window ?: [DYYYUtils getActiveWindow];
+        CGFloat bottom = win ? win.safeAreaInsets.bottom : 0;
+        originalTabBarHeight = MAX(originalTabBarHeight, 70 + bottom); // iPad 底栏更高
+        gCurrentTabBarHeight = originalTabBarHeight;
+        NSLog(@"[DYYY iPad] TabBar height set to %.1f", originalTabBarHeight);
     }
+}
 
     UIWindow *targetWindow = self.window ?: [DYYYUtils getActiveWindow];
     if (self.frame.size.height >= 30) {
@@ -6471,20 +6515,24 @@ static Class tabBarButtonClass = nil;
     %orig;
 
     if (originalTabBarHeight == kInvalidHeight) {
-        NSLog(@"[DYYY] layoutSubviews: Fallback! originalTabBarHeight initialization triggered.");
         [self initializeOriginalTabBarHeight];
     }
 
     if (gCurrentTabBarHeight == kInvalidHeight) {
         gCurrentTabBarHeight = originalTabBarHeight;
-        NSLog(@"[DYYY] layoutSubviews: gCurrentTabBarHeight fallback synced to %.1f.", gCurrentTabBarHeight);
+    }
+
+    // 【iPad 全局缩放支持】
+    if (isIpad()) {
+        CGFloat scale = DYYYGetPadScale();
+        self.transform = CGAffineTransformMakeScale(scale, scale);
     }
 
     BOOL hideShop = DYYYGetBool(@"DYYYHideShopButton");
     BOOL hideMsg = DYYYGetBool(@"DYYYHideMessageButton");
     BOOL hideFri = DYYYGetBool(@"DYYYHideFriendsButton");
     BOOL hideMe = DYYYGetBool(@"DYYYHideMyButton");
-    BOOL isPad = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad);
+    BOOL isPad = isIpad();
 
     NSMutableArray *visibleButtons = [NSMutableArray array];
     UIView *ipadContainerView = nil;
@@ -6492,7 +6540,9 @@ static Class tabBarButtonClass = nil;
     for (UIView *subview in self.subviews) {
         if ([subview isKindOfClass:generalButtonClass] || [subview isKindOfClass:plusButtonClass]) {
             NSString *label = subview.accessibilityLabel;
-            BOOL shouldHide = ([label containsString:@"商城"] && hideShop) || ([label containsString:@"消息"] && hideMsg) || ([label containsString:@"朋友"] && hideFri) ||
+            BOOL shouldHide = ([label containsString:@"商城"] && hideShop) || 
+                              ([label containsString:@"消息"] && hideMsg) || 
+                              ([label containsString:@"朋友"] && hideFri) ||
                               ([label isEqualToString:@"我"] && hideMe);
 
             subview.userInteractionEnabled = !shouldHide;
@@ -6523,24 +6573,54 @@ static Class tabBarButtonClass = nil;
     }
     CGFloat buttonWidth = (visibleButtons.count > 0) ? (totalWidth / visibleButtons.count) : 0;
 
-    // 均匀布局按钮
     for (NSInteger i = 0; i < visibleButtons.count; i++) {
         UIView *button = visibleButtons[i];
         button.frame = CGRectMake(offsetX + i * buttonWidth, button.frame.origin.y, buttonWidth, button.frame.size.height);
     }
 
-    // 禁用首页刷新功能
-    if (DYYYGetBool(@"DYYYDisableHomeRefresh")) {
-        for (UIView *subview in self.subviews) {
-            if ([subview isKindOfClass:generalButtonClass]) {
-                AWENormalModeTabBarGeneralButton *button = (AWENormalModeTabBarGeneralButton *)subview;
-                if ([button.accessibilityLabel isEqualToString:@"首页"]) {
-                    // status == 2 表示选中状态
-                    button.userInteractionEnabled = (button.status != 2);
+    // ==================== 背景和分隔线处理 ====================
+    BOOL hideBottomBg = DYYYGetBool(@"DYYYHideBottomBg");
+    BOOL enableFullScreen = DYYYGetBool(@"DYYYEnableFullScreen");
+    BOOL hideFriendsButton = DYYYGetBool(@"DYYYHideFriendsButton");
+
+    if (hideBottomBg || enableFullScreen) {
+        if (self.skinContainerView) {
+            self.skinContainerView.hidden = YES;
+        }
+
+        BOOL isHomeSelected = NO;
+        BOOL isFriendsSelected = NO;
+
+        if (enableFullScreen && !hideBottomBg) {
+            for (UIView *subview in self.subviews) {
+                if ([subview isKindOfClass:generalButtonClass]) {
+                    AWENormalModeTabBarGeneralButton *button = (AWENormalModeTabBarGeneralButton *)subview;
+                    if (button.status == 2) {
+                        if ([button.accessibilityLabel isEqualToString:@"首页"])
+                            isHomeSelected = YES;
+                        else if ([button.accessibilityLabel containsString:@"朋友"])
+                            isFriendsSelected = YES;
+                    }
                 }
             }
         }
+
+        BOOL shouldHideBackgrounds = hideBottomBg || 
+                                     (enableFullScreen && (isHomeSelected || (isFriendsSelected && !hideFriendsButton)));
+
+        for (UIView *subview in self.subviews) {
+            if ([subview isKindOfClass:barBackgroundClass] || 
+                ([subview isMemberOfClass:[UIView class]] && originalTabBarHeight > 0 && 
+                 fabs(subview.frame.size.height - gCurrentTabBarHeight) < 0.1)) {
+                subview.hidden = shouldHideBackgrounds;
+            }
+        }
+    } else {
+        if (self.skinContainerView) {
+            self.skinContainerView.hidden = NO;
+        }
     }
+}
 
     // 背景和分隔线处理
     BOOL hideBottomBg = DYYYGetBool(@"DYYYHideBottomBg");
@@ -7324,6 +7404,31 @@ static Class tabBarButtonClass = nil;
             }
         }
     }
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    BOOL shouldForceFullScreen = isIpad() || DYYYGetBool(@"DYYYIPadForceFullScreen");
+    
+    if (shouldForceFullScreen) {
+        CGRect frame = self.view.frame;
+        
+        if (self.view.superview) {
+            frame.size.height = self.view.superview.bounds.size.height;
+        } else {
+            frame.size.height = [UIScreen mainScreen].bounds.size.height;
+        }
+        
+        // 额外处理安全区和分屏情况
+        if (isIpad()) {
+            UIWindow *window = [DYYYUtils getActiveWindow];
+            if (window) {
+                frame.size.height = window.bounds.size.height;
+            }
+        }
+        
+        if (fabs(frame.size.height - self.view.frame.size.height) > 1.0) {
+            self.view.frame = frame;
+        }
+    }
+}
 
     UIWindow *keyWindow = [DYYYUtils getActiveWindow];
     if (keyWindow && keyWindow.safeAreaInsets.bottom == 0) {
@@ -7947,6 +8052,10 @@ static Class TagViewClass = nil;
     if (!isApplyingGlobal) {
         objc_setAssociatedObject(self, &kDYYYGlobalTransparencyBaseAlphaKey, @(alpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
+	if (isIpad()) {
+    CGFloat padScale = getPadScaleFactor();
+    self.transform = CGAffineTransformScale(CGAffineTransformIdentity, padScale, padScale);
+}
 
     // 纯净模式功能
     static AWMSafeDispatchTimer *pureModeTimer = nil;
@@ -8065,55 +8174,17 @@ static Class TagViewClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    UIViewController *viewController = [DYYYUtils firstAvailableViewControllerFromView:self];
-
-    if ([viewController isKindOfClass:%c(AWELiveNewPreStreamViewController)]) {
-        const BOOL shouldShiftUp = DYYYGetBool(@"DYYYEnableFullScreen");
-        const CGFloat labelScaleValue = DYYYGetFloat(@"DYYYNicknameScale");
-        const CGFloat targetLabelScale = (labelScaleValue != 0.0) ? MAX(0.01, labelScaleValue) : 1.0;
-        const CGFloat elementScaleValue = DYYYGetFloat(@"DYYYElementScale");
-        const CGFloat targetElementScale = (elementScaleValue != 0.0) ? MAX(0.01, elementScaleValue) : 1.0;
-
-        CGAffineTransform targetTransform = CGAffineTransformIdentity;
-        CGFloat boundsWidth = self.bounds.size.width;
-        CGFloat currentScale = 1.0;
-        CGFloat targetHeight, tx, ty = 0;
-        UIWindow *keyWindow = [DYYYUtils getActiveWindow];
-        if (keyWindow && keyWindow.safeAreaInsets.bottom == 0) {
-            targetHeight = gCurrentTabBarHeight - originalTabBarHeight;
-        } else {
-            targetHeight = gCurrentTabBarHeight;
-        }
-
-        if ([DYYYUtils containsSubviewOfClass:GuideViewClass inContainer:self]) {
-            currentScale = targetLabelScale;
-            tx = 0; // 中对齐
-        } else if ([DYYYUtils containsSubviewOfClass:MuteViewClass inContainer:self]) {
-            currentScale = targetElementScale;
-            tx = (boundsWidth - boundsWidth * currentScale) / 2; // 右对齐
-        } else if ([DYYYUtils containsSubviewOfClass:TagViewClass inContainer:self]) {
-            currentScale = targetLabelScale;
-            tx = (boundsWidth - boundsWidth * currentScale) / -2; // 左对齐
-        }
-
-        NSArray *subviews = [self.subviews copy];
-        for (UIView *view in subviews) {
-            CGFloat viewHeight = view.bounds.size.height;
-            ty += (viewHeight - viewHeight * currentScale) / 2;
-        }
-
-        if (shouldShiftUp) {
-            ty -= targetHeight;
-        }
-
-        targetTransform = CGAffineTransformMake(currentScale, 0, 0, currentScale, tx, ty);
-
-        if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {
-            self.transform = targetTransform;
-        }
+    // 【新增】iPad 全局缩放支持
+    if (isIpad()) {
+        CGFloat scale = DYYYGetPadScale();
+        self.transform = CGAffineTransformMakeScale(scale, scale);
+        return;  // iPad 使用全局缩放后直接返回
     }
 
+    UIViewController *viewController = [DYYYUtils firstAvailableViewControllerFromView:self];
+
     if ([viewController isKindOfClass:%c(AWEPlayInteractionViewController)]) {
+
         NSString *label = self.accessibilityLabel ?: @"";
         BOOL hasAnchor = [DYYYUtils containsSubviewOfClass:NSClassFromString(@"AWEFeedAnchorContainerView") inContainer:self];
         BOOL hasAvatar = [DYYYUtils containsSubviewOfClass:NSClassFromString(@"AWEPlayInteractionUserAvatarView") inContainer:self];
@@ -8319,7 +8390,14 @@ static Class TagViewClass = nil;
         if (shouldShiftUp) {
             ty -= targetHeight;
         }
-        targetTransform = CGAffineTransformMakeTranslation(0, -20);
+
+        // 【新增】iPad 全局缩放支持
+        if (isIpad()) {
+            CGFloat finalScale = DYYYGetPadScale();
+            targetTransform = CGAffineTransformMakeScale(finalScale, finalScale);
+        } else {
+            targetTransform = CGAffineTransformMake(currentScale, 0, 0, currentScale, tx, ty);
+        }
 
         if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {
             self.transform = targetTransform;
@@ -8461,6 +8539,11 @@ static Class TagViewClass = nil;
         }
     }
 
+    // iPad 额外居中调整
+    if (isIpad() && DYYYGetBool(@"DYYYEnableFullScreen")) {
+        center.y -= gCurrentTabBarHeight * 0.3;
+    }
+
     %orig(center);
 }
 %end
@@ -8490,6 +8573,11 @@ static Class TagViewClass = nil;
         if (offset > 0) {
             center.y -= offset * 0.5;
         }
+    }
+
+    // iPad 额外居中调整
+    if (isIpad() && DYYYGetBool(@"DYYYEnableFullScreen")) {
+        center.y -= gCurrentTabBarHeight * 0.3;
     }
 
     %orig(center);
@@ -8904,30 +8992,76 @@ static NSString *const kHideRecentUsersKey = @"DYYYHideSidebarRecentUsers";
 
 %end
 
-%hook AWEDPlayerProgressContainerView
-
+%hook AWEStoryContainerCollectionView
 - (void)layoutSubviews {
     %orig;
 
-    if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYEnableFullScreen"]) {
+    if ([self.subviews count] == 2)
         return;
+
+    // 获取 enableEnterProfile 属性来判断是否是主页
+    id enableEnterProfile = [self valueForKey:@"enableEnterProfile"];
+    BOOL isHome = (enableEnterProfile != nil && [enableEnterProfile boolValue]);
+
+    // 检查是否在作者主页
+    BOOL isAuthorProfile = NO;
+    UIResponder *responder = self;
+    while ((responder = [responder nextResponder])) {
+        if ([NSStringFromClass([responder class]) containsString:@"UserHomeViewController"] || 
+            [NSStringFromClass([responder class]) containsString:@"ProfileViewController"]) {
+            isAuthorProfile = YES;
+            break;
+        }
     }
 
+    // 如果不是主页也不是作者主页，直接返回
+    if (!isHome && !isAuthorProfile)
+        return;
+
     for (UIView *subview in self.subviews) {
-        if ([subview isMemberOfClass:[UIView class]]) {
-            UIColor *bgColor = subview.backgroundColor;
-            if (bgColor) {
-                CGFloat h, s, v, a;
-                if ([bgColor getHue:&h saturation:&s brightness:&v alpha:&a]) {
-                    if (v < 0.2) {
-                        subview.backgroundColor = [UIColor clearColor];
+        if ([subview isKindOfClass:[UIView class]]) {
+            UIView *nextResponder = (UIView *)subview.nextResponder;
+
+            // 处理主页的情况
+            if (isHome && [nextResponder isKindOfClass:%c(AWEPlayInteractionViewController)]) {
+                UIViewController *awemeBaseViewController = [nextResponder valueForKey:@"awemeBaseViewController"];
+                if (![awemeBaseViewController isKindOfClass:%c(AWEFeedCellViewController)]) {
+                    continue;
+                }
+
+                CGRect frame = subview.frame;
+                if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+                    frame.size.height = subview.superview.frame.size.height - gCurrentTabBarHeight;
+                    subview.frame = frame;
+                }
+            }
+            // 处理作者主页的情况
+            else if (isAuthorProfile) {
+                // 检查是否是作品图片
+                BOOL isWorkImage = NO;
+
+                for (UIView *childView in subview.subviews) {
+                    if ([NSStringFromClass([childView class]) containsString:@"ImageView"] || 
+                        [NSStringFromClass([childView class]) containsString:@"ThumbnailView"]) {
+                        isWorkImage = YES;
+                        break;
                     }
+                }
+
+                if (isWorkImage) {
+                    // 修复作者主页作品图片上移问题 + iPad 适配
+                    CGRect frame = subview.frame;
+                    if (isIpad()) {
+                        frame.origin.y += gCurrentTabBarHeight * 0.6;  // iPad 调整幅度
+                    } else {
+                        frame.origin.y += gCurrentTabBarHeight;
+                    }
+                    subview.frame = frame;
                 }
             }
         }
     }
 }
-
 %end
 
 
@@ -8971,7 +9105,7 @@ static void findTargetViewInView(UIView *view) {
     if (interactionBaseLabelClass) {
         %init(DYYYCommentExactTimeGroup, AWECommentSwiftBizUI_CommentInteractionBaseLabel = interactionBaseLabelClass);
     }
-    
+   
     Class imMenuComponentClass = objc_getClass("AWEIMCustomMenuComponent");
     if (imMenuComponentClass) {
         SEL legacySelector = NSSelectorFromString(@"msg_showMenuForBubbleFrameInScreen:tapLocationInScreen:menuItemList:moreEmoticon:onCell:extra:");
@@ -8991,6 +9125,7 @@ static void findTargetViewInView(UIView *view) {
     if (!DYYYGetBool(@"DYYYDisableSettingsGesture")) {
         %init(DYYYSettingsGesture);
     }
+
     if (DYYYGetBool(@"DYYYUserAgreementAccepted")) {
         static dispatch_once_t onceToken;
         dispatch_once(&onceToken, ^{
@@ -9024,7 +9159,6 @@ static void findTargetViewInView(UIView *view) {
         if (commentHeaderGeneralClass) {
             %init(CommentHeaderGeneralGroup, AWECommentPanelHeaderSwiftImpl_CommentHeaderGeneralView = commentHeaderGeneralClass);
         }
-
         Class commentHeaderGoodsClass = objc_getClass("AWECommentPanelHeaderSwiftImpl.CommentHeaderGoodsView");
         if (commentHeaderGoodsClass) {
             %init(CommentHeaderGoodsGroup, AWECommentPanelHeaderSwiftImpl_CommentHeaderGoodsView = commentHeaderGoodsClass);
@@ -9033,7 +9167,6 @@ static void findTargetViewInView(UIView *view) {
         if (commentHeaderTemplateClass) {
             %init(CommentHeaderTemplateGroup, AWECommentPanelHeaderSwiftImpl_CommentHeaderTemplateAnchorView = commentHeaderTemplateClass);
         }
-
         Class tipsVCClass = objc_getClass("AWECommentPanelListSwiftImpl.CommentBottomTipsContainerViewController");
         if (tipsVCClass) {
             %init(CommentBottomTipsVCGroup, AWECommentPanelListSwiftImpl_CommentBottomTipsContainerViewController = tipsVCClass);
@@ -9059,5 +9192,18 @@ static void findTargetViewInView(UIView *view) {
                                                           }
                                                       }
                                                     }];
+    }
+
+    // ==================== iPad 初始化代码 ====================
+    if (isIpad()) {
+        // 确保全局缩放系数有默认值
+        if (![[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYPadGlobalScale"]) {
+            [[NSUserDefaults standardUserDefaults] setObject:@"1.0" forKey:@"DYYYPadGlobalScale"];
+        }
+        // 确保侧边栏比例有默认值
+        if (![[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYPadSidebarWidthRatio"]) {
+            [[NSUserDefaults standardUserDefaults] setObject:@"0.25" forKey:@"DYYYPadSidebarWidthRatio"];
+        }
+        NSLog(@"[DYYY] iPad 初始化完成");
     }
 }
