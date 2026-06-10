@@ -3496,39 +3496,42 @@ static NSArray *DYYYIMMenuItemsByAddingDownloadAction(NSArray *menuItems, id cel
             break;
         }
     }
-        if (isIpad() && DYYYGetBool(@"DYYYHideLeftSideBar")) {
+
+    if (isIpad() && DYYYGetBool(@"DYYYHideLeftSideBar")) {
         self.hidden = YES;
-        }
-    }
-    UIResponder *responder = self;
-    UIViewController *parentVC = nil;
-    while ((responder = [responder nextResponder])) {
-        if ([responder isKindOfClass:%c(AWEFeedContainerViewController)]) {
-            parentVC = (UIViewController *)responder;
-            break;
-        }
     }
 
-    if (!(parentVC && [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYHideLeftSideBar"])) {
-        return;
-    }
-
-    static char kDYLeftSideViewCacheKey;
-    NSArray *cachedViews = objc_getAssociatedObject(self, &kDYLeftSideViewCacheKey);
-    if (!cachedViews) {
-        NSMutableArray *views = [NSMutableArray array];
-        for (UIView *subview in self.subviews) {
-            if ([subview isKindOfClass:%c(DUXBaseImageView)]) {
-                [views addObject:subview];
+    // iPad 隐藏左侧边栏额外处理
+    if (DYYYGetBool(@"DYYYHideLeftSideBar")) {
+        UIResponder *responder = self;
+        UIViewController *parentVC = nil;
+        while ((responder = [responder nextResponder])) {
+            if ([responder isKindOfClass:%c(AWEFeedContainerViewController)]) {
+                parentVC = (UIViewController *)responder;
+                break;
             }
         }
-        cachedViews = [views copy];
-        objc_setAssociatedObject(self, &kDYLeftSideViewCacheKey, cachedViews, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
 
-    for (UIView *v in cachedViews) {
-        v.hidden = YES;
+        if (parentVC) {
+            static char kDYLeftSideViewCacheKey;
+            NSArray *cachedViews = objc_getAssociatedObject(self, &kDYLeftSideViewCacheKey);
+            if (!cachedViews) {
+                NSMutableArray *views = [NSMutableArray array];
+                for (UIView *subview in self.subviews) {
+                    if ([subview isKindOfClass:%c(DUXBaseImageView)]) {
+                        [views addObject:subview];
+                    }
+                }
+                cachedViews = [views copy];
+                objc_setAssociatedObject(self, &kDYLeftSideViewCacheKey, cachedViews, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+
+            for (UIView *v in cachedViews) {
+                v.hidden = YES;
+            }
+        }
     }
+}
 
 %end
 
