@@ -4302,7 +4302,7 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
-// 隐藏右上搜索框（文字隐藏 + 保持可点击 + iPad 适配）
+// 隐藏右上搜索框（文字隐藏 + 保持可点击 + iPad 适配 + 极速版兼容）
 %hook AWEHPDiscoverFeedEntranceView
 
 - (void)layoutSubviews {
@@ -4331,12 +4331,11 @@ static NSHashTable *processedParentViews = nil;
     self.alpha = 0.0;
     self.userInteractionEnabled = YES;
 
-    // 3. iPad 专用强隐藏（宽度压扁 + 移到边缘）
+    // 3. iPad 专属强隐藏（只宽度压扁，极速版安全，主站保持原样）
     if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
         CGRect frame = self.frame;
         frame.size.width = 1.0;           // 几乎不可见
-        frame.origin.x = CGRectGetMaxX(self.superview.bounds) - 5; // 靠右边缘
-        self.frame = frame;
+        self.frame = frame;               // **不移边缘**，避免主站被挤压
     } else {
         // iPhone 保持原有微调
         CGRect frame = self.frame;
@@ -4349,6 +4348,7 @@ static NSHashTable *processedParentViews = nil;
 }
 
 %end
+
 
 // 隐藏点击进入直播间
 %hook AWELiveFeedStatusLabel
