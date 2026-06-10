@@ -4302,7 +4302,7 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
-// 隐藏右上搜索框（文字隐藏 + 保持可点击 + iPad 适配 + 极速版兼容）
+// 隐藏右上搜索框（iPad 极速版 37.1.0 启动届面专属安全版：仅透明 + 保持可点击 + iOS 16.5 兼容）
 %hook AWEHPDiscoverFeedEntranceView
 
 - (void)layoutSubviews {
@@ -4312,42 +4312,38 @@ static NSHashTable *processedParentViews = nil;
         return;
     }
 
-    // 1. 清空所有文字（UILabel）
+    // 1. 只清空文字和图片，保持可点击（启动阶段必须安全）
     for (UIView *subview in self.subviews) {
-        if ([subview isKindOfClass:[UILabel class]]) {
-            UILabel *label = (UILabel *)subview;
-            label.text = nil;
-            label.alpha = 0.0;
-        } else if ([subview isKindOfClass:[UIImageView class]]) {
-            UIImageView *img = (UIImageView *)subview;
-            img.image = nil;
-            img.alpha = 0.0;
+        if ([subview isKindOfClass:[UILabel class]] || [subview isKindOfClass:[UIImageView class]]) {
+            subview.alpha = 0.0;
+            if ([subview isKindOfClass:[UILabel class]]) {
+                ((UILabel *)subview).text = nil;
+            } else if ([subview isKindOfClass:[UIImageView class]]) {
+                ((UIImageView *)subview).image = nil;
+            }
         } else {
-            subview.alpha = 0.0;  // 其他背景/容器透明
+            subview.alpha = 0.0;
         }
     }
 
-    // 2. 整个视图透明，但保持可点击
+    // 2. 整个视图透明，但保持可点击 + 不移除（iOS 16.5 启动届面关键！）
     self.alpha = 0.0;
     self.userInteractionEnabled = YES;
 
-    // 3. iPad 专属强隐藏（只宽度压扁，极速版安全，主站保持原样）
+    // 3. iPad 专属（只压扁，不移边缘，主站+极速版都安全）
     if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
         CGRect frame = self.frame;
-        frame.size.width = 1.0;           // 几乎不可见
-        self.frame = frame;               // **不移边缘**，避免主站被挤压
+        frame.size.width = 1.0;
+        self.frame = frame;
     } else {
-        // iPhone 保持原有微调
         CGRect frame = self.frame;
         frame.size.width = 1.0;
         self.frame = frame;
     }
-
-    // 防止子视图重新出现
-    [self.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
 }
 
 %end
+
 
 
 // 隐藏点击进入直播间
