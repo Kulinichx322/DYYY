@@ -8171,10 +8171,11 @@ static Class TagViewClass = nil;
     %orig;
 }
 
+%hook AWEElementStackView
 - (void)layoutSubviews {
     %orig;
 
-    // 【新增】iPad 全局缩放支持
+    // 【iPad 全局缩放支持】
     if (isIpad()) {
         CGFloat scale = DYYYGetPadScale();
         self.transform = CGAffineTransformMakeScale(scale, scale);
@@ -8263,6 +8264,7 @@ static Class TagViewClass = nil;
         }
     }
 }
+%end
 
 - (NSArray<__kindof UIView *> *)arrangedSubviews {
 
