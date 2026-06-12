@@ -1062,7 +1062,8 @@ static BOOL DYYYShouldHandleSpeedFeatures(void) {
         [self setNeedsLayout];
         [self layoutIfNeeded];	
     }
-}
+} 
+
 %end
 
 // 设置修改顶栏标题
