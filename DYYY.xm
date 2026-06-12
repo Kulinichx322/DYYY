@@ -8096,6 +8096,8 @@ static Class TagViewClass = nil;
     %orig;
 }
 
+%end
+
 - (void)layoutSubviews {
     %orig;
 
@@ -8313,6 +8315,13 @@ static Class TagViewClass = nil;
         [[NSNotificationCenter defaultCenter] removeObserver:self name:kDYYYGlobalTransparencyDidChangeNotification object:nil];
     }
 }
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    %orig;
+}
+
+%end 
 
 - (void)layoutSubviews {
     %orig;
