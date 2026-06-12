@@ -1,12 +1,9 @@
-Package: com.huami.dyyy
-Name: DYYY
-Version: 2.2-9
-Description: 仅供学习交流，请在 24 小时内自觉删除。
-Homepage: https://github.com/huami1314/DYYY
+Package: com.your.awemex.fix
+Name: AwemeX iPad Fix
+Depends: mobilesubstrate
+Architecture: iphoneos-arm64
+Description: Fix AwemeX for iPad
+Version: 1.0
+Maintainer: You
+Author: You
 Section: Tweaks
-Depends: firmware (>= 5.0), mobilesubstrate
-Priority: optional
-Maintainer: huami
-Author: huami
-Architecture: iphoneos-arm
-Icon: https://Mieing.Github.io/repo/file/TikTok.png
