@@ -383,16 +383,6 @@ static BOOL DYYYUtilsWriteStaticImageToGIF(UIImage *image, NSURL *gifURL) {
 + (NSString *)displayLocationForGeoNamesError:(NSError *)error model:(AWEAwemeModel *)model;
 @end
 
-static BOOL isIpad(void) {
-    return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
-}
-
-static CGFloat getPadScaleFactor(void) {
-    NSString *scaleStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYPadScaleFactor"];
-    CGFloat scale = scaleStr.length > 0 ? [scaleStr floatValue] : 1.15;
-    return MAX(0.8, MIN(1.8, scale)); // 限制范围
-}
-
 @implementation DYYYUtils
 
 static const void *kCurrentIPRequestCityCodeKey = &kCurrentIPRequestCityCodeKey;
