@@ -1064,6 +1064,7 @@ static BOOL DYYYShouldHandleSpeedFeatures(void) {
     }
 } 
 
+}
 %end
 
 // 设置修改顶栏标题
@@ -4308,7 +4309,6 @@ static NSHashTable *processedParentViews = nil;
 %end
 
 // 隐藏右上搜索，但可点击
-%hook AWEHPDiscoverFeedEntranceView
 
 // 隐藏右上搜索（增强 iPad 支持）
 %hook AWEHPDiscoverFeedEntranceView
@@ -8097,7 +8097,6 @@ static Class TagViewClass = nil;
     %orig;
 }
 
-%end
 
 - (void)layoutSubviews {
     %orig;
@@ -8322,7 +8321,6 @@ static Class TagViewClass = nil;
     %orig;
 }
 
-%end 
 
 - (void)layoutSubviews {
     %orig;
@@ -8609,7 +8607,6 @@ static Class TagViewClass = nil;
     %orig;
 }
 
-%end
 
 - (void)layoutSubviews {
     %orig;
