@@ -1057,6 +1057,10 @@ static BOOL DYYYShouldHandleSpeedFeatures(void) {
         }
     } else {
         %orig(1.0);
+	if (isIpad() && DYYYGetString(@"DYYYTopBarTransparent").length > 0) {
+        // 强制刷新
+        [self setNeedsLayout];
+        [self layoutIfNeeded];	
     }
 }
 %end
@@ -4305,17 +4309,58 @@ static NSHashTable *processedParentViews = nil;
 // 隐藏右上搜索，但可点击
 %hook AWEHPDiscoverFeedEntranceView
 
+// 隐藏右上搜索（增强 iPad 支持）
+%hook AWEHPDiscoverFeedEntranceView
 - (void)layoutSubviews {
     %orig;
 
-    if (DYYYGetBool(@"DYYYHideDiscover")) {
-        UIView *firstSubview = self.subviews.firstObject;
-        if ([firstSubview isKindOfClass:[UIImageView class]]) {
-            ((UIImageView *)firstSubview).image = nil;
+    if (!DYYYGetBool(@"DYYYHideDiscover")) {
+        return;
+    }
+
+    // 清空内容 + 透明
+    for (UIView *subview in self.subviews) {
+        if ([subview isKindOfClass:[UILabel class]] || [subview isKindOfClass:[UIImageView class]]) {
+            subview.alpha = 0.0;
+            if ([subview isKindOfClass:[UILabel class]]) {
+                ((UILabel *)subview).text = nil;
+            } else if ([subview isKindOfClass:[UIImageView class]]) {
+                ((UIImageView *)subview).image = nil;
+            }
+        } else {
+            subview.alpha = 0.0;
         }
     }
-}
 
+    self.alpha = 0.0;
+    self.userInteractionEnabled = YES;  // 保持可点击，避免崩溃
+
+    // iPad 专属处理：更彻底隐藏 + 刷新父视图
+    if (isIpad()) {
+        CGRect frame = self.frame;
+        frame.size.width = 1.0;
+        frame.size.height = 1.0;
+        self.frame = frame;
+        
+        // 额外隐藏可能存在的父容器
+        UIView *sup = self.superview;
+        while (sup && ![sup isKindOfClass:[UIWindow class]]) {
+            if ([NSStringFromClass([sup class]) containsString:@"Search"] || 
+                [NSStringFromClass([sup class]) containsString:@"Discover"]) {
+                sup.alpha = 0.0;
+                sup.userInteractionEnabled = YES;
+            }
+            sup = sup.superview;
+        }
+    } else {
+        CGRect frame = self.frame;
+        frame.size.width = 1.0;
+        self.frame = frame;
+    }
+
+    [self.superview setNeedsLayout];
+    [self.superview layoutIfNeeded];
+}
 %end
 
 // 隐藏点击进入直播间
@@ -7181,33 +7226,41 @@ static Class tabBarButtonClass = nil;
 
 %new
 - (void)dyyy_applyGlobalTransparency {
-    if ([NSThread isMainThread]) {
-        if (self.window && self.tag != DYYY_IGNORE_GLOBAL_ALPHA_TAG) {
-            NSNumber *stored = objc_getAssociatedObject(self, &kDYYYGlobalTransparencyBaseAlphaKey);
-            CGFloat baseAlpha = stored ? stored.floatValue : self.alpha;
-            if (!stored) {
-                objc_setAssociatedObject(self, &kDYYYGlobalTransparencyBaseAlphaKey, @(baseAlpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            }
-            CGFloat finalAlpha = baseAlpha;
-            if (gGlobalTransparency != kInvalidAlpha) {
-                CGFloat clampedAlpha = MIN(MAX(baseAlpha, 0.0), 1.0);
-                finalAlpha = clampedAlpha * gGlobalTransparency;
-            }
-            if (fabs(self.alpha - finalAlpha) >= 0.01) {
-                [UIView animateWithDuration:0.2
-                                 animations:^{
-                                   dyyyGlobalTransparencyMutationDepth++;
-                                   self.alpha = finalAlpha;
-                                   if (dyyyGlobalTransparencyMutationDepth > 0) {
-                                       dyyyGlobalTransparencyMutationDepth--;
-                                   }
-                                 }];
-            }
-        }
-    } else {
+    if (![NSThread isMainThread]) {
         dispatch_async(dispatch_get_main_queue(), ^{
-          [self dyyy_applyGlobalTransparency];
+            [self dyyy_applyGlobalTransparency];
         });
+        return;
+    }
+
+    if (self.tag == DYYY_IGNORE_GLOBAL_ALPHA_TAG || !self.window) return;
+
+    NSNumber *stored = objc_getAssociatedObject(self, &kDYYYGlobalTransparencyBaseAlphaKey);
+    CGFloat baseAlpha = stored ? stored.floatValue : self.alpha;
+    if (!stored) {
+        objc_setAssociatedObject(self, &kDYYYGlobalTransparencyBaseAlphaKey, @(baseAlpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+
+    CGFloat finalAlpha = baseAlpha;
+    if (gGlobalTransparency != kInvalidAlpha) {
+        finalAlpha = MIN(MAX(baseAlpha * gGlobalTransparency, 0.0), 1.0);
+    }
+
+    BOOL shouldApply = fabs(self.alpha - finalAlpha) > 0.01;
+    if (isIpad() && shouldApply) {
+        // iPad 增强：强制应用 + 多次刷新布局（解决缩放后 alpha 被重置的问题）
+        self.alpha = finalAlpha;
+        [self setNeedsLayout];
+        [self layoutIfNeeded];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self setNeedsLayout];
+            [self layoutIfNeeded];
+        });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self dyyy_applyGlobalTransparency];
+        });
+    } else if (shouldApply) {
+        self.alpha = finalAlpha;
     }
 }
 
@@ -8023,6 +8076,15 @@ static Class TagViewClass = nil;
     %orig;
     if (self.window) {
         [self dyyy_applyGlobalTransparency];
+        // iPad 额外延迟，确保全局缩放后透明度生效
+        if (isIpad()) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self dyyy_applyGlobalTransparency];
+            });
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self dyyy_applyGlobalTransparency];
+            });
+        }
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(dyyy_applyGlobalTransparency) name:kDYYYGlobalTransparencyDidChangeNotification object:nil];
     } else {
         [[NSNotificationCenter defaultCenter] removeObserver:self name:kDYYYGlobalTransparencyDidChangeNotification object:nil];
@@ -8237,15 +8299,19 @@ static Class TagViewClass = nil;
     %orig;
     if (self.window) {
         [self dyyy_applyGlobalTransparency];
+        // iPad 额外延迟，确保全局缩放后透明度生效
+        if (isIpad()) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self dyyy_applyGlobalTransparency];
+            });
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self dyyy_applyGlobalTransparency];
+            });
+        }
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(dyyy_applyGlobalTransparency) name:kDYYYGlobalTransparencyDidChangeNotification object:nil];
     } else {
         [[NSNotificationCenter defaultCenter] removeObserver:self name:kDYYYGlobalTransparencyDidChangeNotification object:nil];
     }
-}
-
-- (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
-    %orig;
 }
 
 - (void)layoutSubviews {
@@ -8513,6 +8579,15 @@ static Class TagViewClass = nil;
     %orig;
     if (self.window) {
         [self dyyy_applyGlobalTransparency];
+        // iPad 额外延迟，确保全局缩放后透明度生效
+        if (isIpad()) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self dyyy_applyGlobalTransparency];
+            });
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self dyyy_applyGlobalTransparency];
+            });
+        }
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(dyyy_applyGlobalTransparency) name:kDYYYGlobalTransparencyDidChangeNotification object:nil];
     } else {
         [[NSNotificationCenter defaultCenter] removeObserver:self name:kDYYYGlobalTransparencyDidChangeNotification object:nil];
