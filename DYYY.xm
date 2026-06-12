@@ -45,6 +45,50 @@ static inline BOOL isIpad(void) {
     return UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad;
 }
 
+
+static UILabel *DYYYFindLabelWithTextInView(UIView *view, NSString *keyword, NSInteger depth) {
+    if (!view || depth < 0) return nil;
+
+    if ([view isKindOfClass:[UILabel class]]) {
+        UILabel *label = (UILabel *)view;
+        if ([label.text containsString:keyword]) {
+            return label;
+        }
+    }
+
+    for (UIView *subview in view.subviews) {
+        UILabel *label = DYYYFindLabelWithTextInView(subview, keyword, depth - 1);
+        if (label) return label;
+    }
+
+    return nil;
+}
+
+static void DYYYHideIPadAutoPlayButtonIfNeeded(UIView *view) {
+    if (!isIpad() || !view.window || view.hidden) return;
+
+    UILabel *label = DYYYFindLabelWithTextInView(view, @"连播", 4);
+    if (!label) return;
+
+    UIView *target = label.superview ?: label;
+    UIView *parent = target.superview;
+
+    // 尽量隐藏“连播”按钮自身，而不是整块右侧操作栏。
+    while (parent && parent != view.window) {
+        CGSize size = parent.bounds.size;
+        if (size.width <= 180.0 && size.height <= 180.0) {
+            target = parent;
+            parent = parent.superview;
+        } else {
+            break;
+        }
+    }
+
+    target.hidden = YES;
+    target.alpha = 0.0;
+    target.userInteractionEnabled = NO;
+}
+
 static void updateGlobalTransparencyCache() {
     NSString *transparentValue = DYYYGetString(kDYYYGlobalTransparencyKey);
     if (transparentValue.length > 0) {
@@ -7159,6 +7203,9 @@ static Class tabBarButtonClass = nil;
 
 - (void)layoutSubviews {
     %orig;
+
+    // iPad 端隐藏抖音极速版右侧中间“连播”按钮，不缩小、不占位。
+    DYYYHideIPadAutoPlayButtonIfNeeded(self);
 
     if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         if (self.frame.size.height == originalTabBarHeight && originalTabBarHeight > 0) {
