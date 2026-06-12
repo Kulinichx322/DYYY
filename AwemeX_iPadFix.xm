@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 
 static inline BOOL isIpad(void) {
-    return UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad;
+    return [[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad;
 }
 
 #pragma mark - 修复缩放叠加（核心）
