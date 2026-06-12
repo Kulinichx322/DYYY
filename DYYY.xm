@@ -8599,6 +8599,8 @@ static Class TagViewClass = nil;
     %orig;
 }
 
+%end
+
 - (void)layoutSubviews {
     %orig;
     if (DYYYGetBool(@"DYYYRemoveEntry")) {
